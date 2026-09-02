@@ -87,8 +87,8 @@
         for (var k = 0; k < items.length; k++) {
             var t = items[k].inPoint + inst.startTime;
             if (t < inst.inPoint) t = inst.inPoint;   // голова первого пункта подрезана инстансом
-            if (t >= inst.outPoint - 0.001) { L("    (пропуск " + labelPrefix + " " + items[k].n + " — за пределами окна блока)"); continue; }
-            out.push({ t: t, label: labelPrefix + " " + items[k].n });
+            if (t >= inst.outPoint - 0.001) { L("    (пропуск " + labelPrefix + items[k].n + " — за пределами окна блока)"); continue; }
+            out.push({ t: t, label: labelPrefix + items[k].n });
         }
         return out;
     }
@@ -102,9 +102,9 @@
 
         var markers = [];
         L("  Новости:");
-        markers = markers.concat(blockMarkers(osnova, "новости текст", /^новость\s+(\d+)$/i, "Новость"));
+        markers = markers.concat(blockMarkers(osnova, "новости текст", /^новость\s+(\d+)$/i, "Н"));
         L("  Гороскоп:");
-        markers = markers.concat(blockMarkers(osnova, "гороскоп текст", /^гороскоп\s+(\d+)$/i, "Гороскоп"));
+        markers = markers.concat(blockMarkers(osnova, "гороскоп текст", /^гороскоп\s+(\d+)$/i, "Г"));
 
         markers.sort(function (a, b) { return a.t - b.t; });
         for (var i = 0; i < markers.length; i++) {
