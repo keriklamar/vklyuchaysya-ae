@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ExtensionManifest Version="7.0" ExtensionBundleId="by.autopogoda.panel"
+    ExtensionBundleVersion="1.0.0" ExtensionBundleName="Включайся!"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <ExtensionList>
+    <Extension Id="by.autopogoda.panel.main" Version="1.0.0" />
+  </ExtensionList>
+  <ExecutionEnvironment>
+    <HostList>
+      <!-- AEFT = After Effects. Версии 18.0+ (2021+); поправь при необходимости -->
+      <Host Name="AEFT" Version="[18.0,99.9]" />
+    </HostList>
+    <LocaleList>
+      <Locale Code="All" />
+    </LocaleList>
+    <RequiredRuntimeList>
+      <RequiredRuntime Name="CSXS" Version="9.0" />
+    </RequiredRuntimeList>
+  </ExecutionEnvironment>
+  <DispatchInfoList>
+    <Extension Id="by.autopogoda.panel.main">
+      <DispatchInfo>
+        <Resources>
+          <MainPath>./client/index.html</MainPath>
+          <ScriptPath>./host/host.jsx</ScriptPath>
+          <CEFCommandLine>
+            <!-- Включает доступ к Node.js прямо из панели —
+                 нужно, чтобы делать HTTP-запросы и читать .docx
+                 без CORS-ограничений браузера -->
+            <Parameter>--enable-nodejs</Parameter>
+            <Parameter>--mixed-context</Parameter>
+          </CEFCommandLine>
+        </Resources>
+        <Lifecycle>
+          <AutoVisible>true</AutoVisible>
+        </Lifecycle>
+        <UI>
+          <Type>Panel</Type>
+          <Menu>Включайся!</Menu>
+          <Geometry>
+            <Size>
+              <Height>560</Height>
+              <Width>380</Width>
+            </Size>
+          </Geometry>
+        </UI>
+      </DispatchInfo>
+    </Extension>
+  </DispatchInfoList>
+</ExtensionManifest>

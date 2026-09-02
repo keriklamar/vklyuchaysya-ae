@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Включайся!</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <section class="block">
+    <h2>День выпуска</h2>
+    <p class="hint">Влияет на прогноз погоды (дневной, на этот день) и на дату на экране. Погода — по кнопке «Обновить погоду».</p>
+    <label>Дата: <select id="broadcastDay"></select></label>
+  </section>
+
+  <section class="block">
+    <h2>Погода</h2>
+    <div class="row">
+      <button id="btnWeather">Обновить погоду</button>
+      <span class="status-icon" id="weatherStatus"></span>
+    </div>
+    <div id="weatherPreview" class="preview"></div>
+    <button id="btnWeatherApplyEdits" class="apply-edits">Применить правки</button>
+  </section>
+
+  <div class="pair-row">
+    <section class="block">
+      <h2>Курс валют</h2>
+      <div class="row">
+        <button id="btnCurrency">Обновить курс валют</button>
+        <span class="status-icon" id="currencyStatus"></span>
+      </div>
+      <div id="currencyPreview" class="preview"></div>
+      <button id="btnCurrencyApplyEdits" class="apply-edits">Применить правки</button>
+    </section>
+
+    <section class="block">
+      <h2>Дата / день недели</h2>
+      <div class="row">
+        <button id="btnDate">Обновить дату</button>
+        <span class="status-icon" id="dateStatus"></span>
+      </div>
+      <div id="datePreview" class="preview"></div>
+      <button id="btnDateApplyEdits" class="apply-edits">Применить правки</button>
+    </section>
+  </div>
+
+  <section class="block">
+    <h2>Именины</h2>
+    <p class="hint">Имена через запятую. Enter в поле — перенести на 2-ю строку с этого места (иначе решает само: 1-4 имени в 1 строку, 5-8 — в 2).</p>
+    <div class="row">
+      <button id="btnBdayFetch">Взять имена с сайта</button>
+      <span class="status-icon" id="bdayStatus"></span>
+    </div>
+    <textarea id="bdayNamesInput" class="edit-field long-field" rows="1" placeholder="Иван, Пётр, Мария, Ольга, ..."></textarea>
+    <button id="btnBirthday">Загрузить именины</button>
+  </section>
+
+  <section class="block">
+    <h2>Новости</h2>
+    <p class="hint">Enter внутри текста новости — перенести на 2-ю строку с этого места.</p>
+    <input type="file" id="docxFile" accept=".docx" />
+    <div class="row">
+      <button id="btnNews" disabled>Загрузить новости</button>
+      <span class="status-icon" id="newsStatus"></span>
+    </div>
+    <div id="newsPreview" class="preview"></div>
+  </section>
+
+  <section class="block">
+    <h2>Гороскоп</h2>
+    <p class="hint">Enter внутри текста гороскопа — перенести на 2-ю строку с этого места.</p>
+    <input type="file" id="horoscopeFile" accept=".docx" />
+    <div class="row">
+      <button id="btnHoroscope" disabled>Загрузить гороскоп</button>
+      <span class="status-icon" id="horoscopeStatus"></span>
+    </div>
+    <div id="horoscopePreview" class="preview"></div>
+  </section>
+
+  <section class="block">
+    <h2>Переходы</h2>
+    <div class="row">
+      <button id="btnAllTransitions">Применить переходы</button>
+      <span class="status-icon" id="allTransitionsStatus"></span>
+    </div>
+  </section>
+
+  <script src="./js/CSInterface.js"></script>
+  <script src="./js/jszip.min.js"></script>
+  <script src="./js/main.js"></script>
+</body>
+</html>

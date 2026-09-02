@@ -1,0 +1,20 @@
+# сборка инсталлятора
+installer/Output/
+
+# временное AE / Adobe
+*.aep_AME/
+**/Adobe After Effects Auto-Save/
+**/Adobe Premiere Pro Auto-Save/
+*.aep.lock
+
+# MCP-мост (рантайм)
+ae-mcp-bridge/
+ae_command*.json
+ae_mcp_result*.json
+frames/
+
+# прочее
+*.log
+Thumbs.db
+.DS_Store
+__MACOSX/
