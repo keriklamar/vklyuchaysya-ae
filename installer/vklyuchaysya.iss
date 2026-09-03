@@ -11,7 +11,7 @@
 ; ============================================================
 
 #define AppName "Включайся!"
-#define AppVersion "1.1.0"
+#define AppVersion "1.1.1"
 #define AppPublisher "AutoPogoda"
 
 [Setup]
@@ -45,9 +45,6 @@ Name: "{userappdata}\Adobe\CEP\extensions"; Flags: uninsneveruninstall
 ; --- CEP-панель (per-user, версия AE значения не имеет) ---
 Source: "..\panel\AutoPogodaPanel\*"; DestDir: "{userappdata}\Adobe\CEP\extensions\AutoPogodaPanel"; \
     Flags: recursesubdirs createallsubdirs ignoreversion
-
-; --- MCP-мост (опциональный инструмент разработки/отладки) ---
-Source: "..\panel\mcp-bridge-auto.jsx"; DestDir: "{app}\dev"; Flags: ignoreversion
 
 ; --- проект After Effects ---
 Source: "..\project\*"; DestDir: "{app}\Graph"; Flags: recursesubdirs createallsubdirs ignoreversion

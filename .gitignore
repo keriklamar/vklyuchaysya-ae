@@ -7,12 +7,6 @@ installer/Output/
 **/Adobe Premiere Pro Auto-Save/
 *.aep.lock
 
-# MCP-мост (рантайм)
-ae-mcp-bridge/
-ae_command*.json
-ae_mcp_result*.json
-frames/
-
 # прочее
 *.log
 Thumbs.db

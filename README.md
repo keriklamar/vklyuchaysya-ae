@@ -17,17 +17,12 @@ panel/
     CSXS/manifest.xml     bundle id by.autopogoda.panel, CSXS 9.0+, AEFT 18.0+
     client/               UI: index.html + js/main.js (+ CSInterface.js, jszip.min.js)
     host/host.jsx         вся логика ExtendScript (~230 КБ, ES3)
-  mcp-bridge-auto.jsx     ScriptUI-панель: файловый мост для осмотра/правки
-                          проекта извне (инструмент разработки, в установщик не входит)
 project/
   подложка утро_0.3.aep   основной проект
   подложка.psd            исходник подложки
-  Включайся.prproj        монтажный проект Premiere
   Анимашки/               исходники иконок погоды (Weather icons *.aep)
   icons/                  PNG/SVG иконок погоды
-  generate_osnova_bez_dr.jsx  разовый генератор композиции «ОСНОВА без др»
-  place_markers.jsx           разовый скрипт разметки маркеров новостей/гороскопа
-  Супер-новая сетка. Включайся!.xlsx   тайминг-сетка выпуска
+  новости пример.docx     образец .docx с новостями
 fonts/                    Cousine + Manrope (.ttf)
 installer/
   vklyuchaysya.iss        скрипт Inno Setup 6
@@ -56,20 +51,11 @@ installer/
 | Переходы | — | `applyAllBlockTransitions`, `resetAllTransitions` |
 
 Проект содержит две главные композиции: **`ОСНОВА`** (197 с, полный выпуск) и
-**`ОСНОВА без др`** (187.62 с — тот же выпуск без блока «дни рождения»,
-генерируется `generate_osnova_bez_dr.jsx`). Панель работает по **активной**
-композиции, имя которой содержит «ОСНОВА» (`getOsnova` / `getPodlozhka`).
+**`ОСНОВА без др`** (187.62 с — тот же выпуск без блока «дни рождения»). Панель
+работает по **активной** композиции, имя которой содержит «ОСНОВА»
+(`getOsnova` / `getPodlozhka`).
 
 Имена слоёв и композиций регистрозависимы — по ним `host.jsx` находит цели.
-
-### MCP-мост
-
-`panel/mcp-bridge-auto.jsx` — ScriptUI-панель (`File → Scripts → …` или
-`Window`). Раз в 2 с читает `~/Documents/ae-mcp-bridge/ae_command.json`
-(`{"command","args","status":"pending"}`), выполняет и пишет
-`ae_mcp_result.json`. Команды: `listLayers`, `inspectLayer`, `getProjectInfo`,
-`listCompositions`, `saveFrame`, `addMarker(sFromArray)`, `createRectMask` и др.
-Нужен только для разработки/отладки, конечному пользователю не ставится.
 
 ---
 
@@ -111,20 +97,6 @@ JRSoftware.InnoSetup`).
 
 → `installer\Output\Vklyuchaysya_Setup.exe` (папка `Output/` в `.gitignore`;
 готовый бинарь публикуется как ассет GitHub Release).
-
----
-
-## Разовые скрипты обслуживания проекта
-
-Запуск: `File → Scripts → Run Script File…`. Пишут лог в
-`~/Documents/ae-mcp-bridge/frames/`.
-
-- **`generate_osnova_bez_dr.jsx`** — создаёт `ОСНОВА без др` + `подложка без др`
-  (копии без блока «др», хвост сдвинут влево на длину блока). Перед запуском —
-  «Сбросить переходы» в панели.
-- **`place_markers.jsx`** — сносит все маркеры на `ОСНОВА` и `ОСНОВА без др` и
-  ставит маркеры на старт каждой новости (6) и пункта гороскопа (12); в конце
-  сохраняет проект.
 
 ---
 
