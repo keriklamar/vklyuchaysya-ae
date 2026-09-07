@@ -14,3 +14,7 @@ Thumbs.db
 __MACOSX/
 
 _finish_github.ps1
+
+# рендеры (лежат в папке репо, но в git не идут)
+gotovo/
+*.mov
