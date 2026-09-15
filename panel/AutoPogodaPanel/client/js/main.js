@@ -281,35 +281,101 @@ async function fetchAllWeatherForDay(dayOffset) {
 }
 
 // ------------------------------------------------------------
-// Курс валют (nbrb.by) — тот же паттерн запроса, что и у погоды.
+// Курс валют (nbrb.by) — 2026-09: два исправления.
+//
+// 1) Дата — берётся выбранный день выпуска (selectedDayOffset), как у
+//    погоды/даты/именин, через ?ondate=YYYY-MM-DD (раньше всегда шёл
+//    ?periodicity=0 без даты — т.е. "сегодня", независимо от выбора
+//    в "День выпуска"). НБ РБ не публикует курс на каждую дату (будущее
+//    ещё не объявлено, дата в прошлом может не попасть на публикацию) —
+//    если на выбранный день ответ пуст, откатываемся на предыдущие дни
+//    (до NBRB_RATE_LOOKBACK_DAYS) — это и есть официальный курс,
+//    действующий на выбранный день (курс не публикуют ежедневно, но он
+//    остаётся в силе, пока не объявлен новый).
+//
+// 2) Округление — 2 знака берутся из ТЕКСТА ответа API десятичной
+//    арифметикой (roundDecimalString), а не через Number.toFixed():
+//    JS-число — двоичная дробь, и на части значений toFixed(2) даёт не
+//    тот результат, что показывает сайт (классический пример — 1.005
+//    в JS хранится как 1.00499999..., .toFixed(2) вернёт "1.00" вместо
+//    верного "1.01"). Работая со строкой цифр из ответа НБ РБ напрямую,
+//    получаем ровно то число, что "на сайте", без бинарной погрешности.
 // ------------------------------------------------------------
-function fetchCurrencies() {
+var NBRB_RATE_LOOKBACK_DAYS = 10;
+
+function isoDateStr(d) {
+  var m = d.getMonth() + 1, day = d.getDate();
+  return d.getFullYear() + "-" + (m < 10 ? "0" + m : m) + "-" + (day < 10 ? "0" + day : day);
+}
+
+function fetchNbrbRatesRawFor(dateISO) {
   return new Promise(function (resolve, reject) {
     var https = require("https");
-    var url = "https://api.nbrb.by/exrates/rates?periodicity=0";
-
+    var url = "https://api.nbrb.by/exrates/rates?periodicity=0&ondate=" + dateISO;
     https.get(url, {
       headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
       rejectUnauthorized: false
     }, function (res) {
       var data = "";
       res.on("data", function (chunk) { data += chunk; });
-      res.on("end", function () {
-        try {
-          var all = JSON.parse(data);
-          var byCode = {};
-          all.forEach(function (item) { byCode[item.Cur_Abbreviation] = item; });
-          var result = CURRENCIES.map(function (c) {
-            var item = byCode[c.code];
-            if (!item) return { code: c.code, label: c.label, rate: "" };
-            return { code: c.code, label: c.label, rate: item.Cur_OfficialRate.toFixed(2) };
-          });
-          resolve(result);
-        } catch (e) {
-          reject(new Error("Не удалось распарсить ответ nbrb.by"));
-        }
-      });
+      res.on("end", function () { resolve(data); });
     }).on("error", function (err) { reject(err); });
+  });
+}
+
+// Достаёт "Cur_OfficialRate" ровно для одной валюты ИЗ ТЕКСТА ответа
+// (не из JSON.parse) — объекты в ответе nbrb.by плоские (без вложенных
+// {}), поэтому такой разбор однозначен.
+function extractOfficialRateText(rawText, code) {
+  var itemRe = new RegExp('\\{[^{}]*"Cur_Abbreviation":"' + code + '"[^{}]*\\}');
+  var item = itemRe.exec(rawText);
+  if (!item) return null;
+  var rateRe = /"Cur_OfficialRate":\s*(-?[0-9]+(?:\.[0-9]+)?)/;
+  var rate = rateRe.exec(item[0]);
+  return rate ? rate[1] : null;
+}
+
+// Округление ДЕСЯТИЧНОЙ СТРОКИ (round half up), без перевода в float.
+function roundDecimalString(numStr, decimals) {
+  var neg = numStr.charAt(0) === "-";
+  if (neg) numStr = numStr.slice(1);
+  var parts = numStr.split(".");
+  var intPart = parts[0] || "0";
+  var fracPart = parts[1] || "";
+  while (fracPart.length <= decimals) fracPart += "0";
+  var keep = fracPart.slice(0, decimals);
+  var nextDigit = fracPart.charCodeAt(decimals) - 48;
+  var digits = (intPart + keep).split("").map(function (ch) { return ch.charCodeAt(0) - 48; });
+  if (nextDigit >= 5) {
+    var i = digits.length - 1;
+    while (i >= 0) {
+      digits[i]++;
+      if (digits[i] === 10) { digits[i] = 0; i--; } else { break; }
+    }
+    if (i < 0) digits.unshift(1);
+  }
+  var s = digits.join("");
+  var intLen = s.length - decimals;
+  var result = s.slice(0, intLen) + (decimals ? "." + s.slice(intLen) : "");
+  return (neg ? "-" : "") + result;
+}
+
+function fetchCurrenciesRawForDate(dateObj, triesLeft) {
+  return fetchNbrbRatesRawFor(isoDateStr(dateObj)).then(function (rawText) {
+    var hasAny = CURRENCIES.some(function (c) { return extractOfficialRateText(rawText, c.code) !== null; });
+    if (hasAny || triesLeft <= 0) return rawText;
+    var prevDay = new Date(dateObj.getTime());
+    prevDay.setDate(prevDay.getDate() - 1);
+    return fetchCurrenciesRawForDate(prevDay, triesLeft - 1);
+  });
+}
+
+function fetchCurrencies() {
+  return fetchCurrenciesRawForDate(dateShifted(selectedDayOffset), NBRB_RATE_LOOKBACK_DAYS).then(function (rawText) {
+    return CURRENCIES.map(function (c) {
+      var raw = extractOfficialRateText(rawText, c.code);
+      return { code: c.code, label: c.label, rate: raw ? roundDecimalString(raw, 2) : "" };
+    });
   });
 }
 

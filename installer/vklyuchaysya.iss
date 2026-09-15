@@ -11,7 +11,7 @@
 ; ============================================================
 
 #define AppName "Включайся!"
-#define AppVersion "1.1.2"
+#define AppVersion "1.1.3"
 #define AppPublisher "AutoPogoda"
 
 [Setup]
