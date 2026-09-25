@@ -11,7 +11,7 @@
 ; ============================================================
 
 #define AppName "Включайся!"
-#define AppVersion "1.1.5"
+#define AppVersion "1.1.6"
 #define AppPublisher "AutoPogoda"
 
 [Setup]
@@ -24,6 +24,10 @@ WizardStyle=modern
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 DefaultDirName={userdocs}\Включайся
+; явно показываем страницу выбора папки установки (проект + резервная
+; копия ставятся туда; панель и шрифты — всегда в фиксированные системные
+; места, от выбора папки не зависят)
+DisableDirPage=no
 DefaultGroupName=Включайся!
 DisableProgramGroupPage=yes
 AllowNoIcons=yes

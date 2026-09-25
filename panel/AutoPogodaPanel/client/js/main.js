@@ -576,7 +576,17 @@ async function parseDocxParagraphs(file, maxItems) {
 
   var text;
   if (isZip || isOle) {
-    var WordExtractor = require("word-extractor");
+    // 2026-09-25: было require("word-extractor") + node_modules — падало
+    // ("Cannot find module") на другой машине: CEP резолвит require()
+    // неоднозначно (иногда от client/index.html, иногда от самого
+    // client/js/main.js — судя по всему, зависит от машины/версии AE), а
+    // вложенный node_modules ещё и рискует упереться в лимит длины пути
+    // Windows (260 симв.) при установке. Теперь — word-extractor.bundle.js,
+    // один файл (esbuild --bundle, все зависимости внутри), СОЗНАТЕЛЬНО
+    // продублирован и в client/, и в client/js/ — так относительный путь
+    // "./word-extractor.bundle.js" находится независимо от того, какую из
+    // двух баз возьмёт require() в конкретном окружении.
+    var WordExtractor = require("./word-extractor.bundle.js");
     var doc = await new WordExtractor().extract(buffer);
     text = doc.getBody();
   } else if (isRtf) {
