@@ -575,18 +575,33 @@ async function parseDocxParagraphs(file, maxItems) {
   var isRtf = buffer.slice(0, 5).toString("ascii") === "{\\rtf";
 
   var text;
-  if (isZip || isOle) {
-    // 2026-09-25: было require("word-extractor") + node_modules — падало
-    // ("Cannot find module") на другой машине: CEP резолвит require()
-    // неоднозначно (иногда от client/index.html, иногда от самого
-    // client/js/main.js — судя по всему, зависит от машины/версии AE), а
-    // вложенный node_modules ещё и рискует упереться в лимит длины пути
-    // Windows (260 симв.) при установке. Теперь — word-extractor.bundle.js,
-    // один файл (esbuild --bundle, все зависимости внутри), СОЗНАТЕЛЬНО
-    // продублирован и в client/, и в client/js/ — так относительный путь
-    // "./word-extractor.bundle.js" находится независимо от того, какую из
-    // двух баз возьмёт require() в конкретном окружении.
-    var WordExtractor = require("./word-extractor.bundle.js");
+  if (isZip) {
+    // Настоящий .docx — ПРОВЕРЕННЫЙ годами способ: JSZip (глобальный,
+    // подключён тегом <script>, без require() вообще) + вытащить текст из
+    // word/document.xml. 2026-09-25: require("word-extractor")/
+    // require("./word-extractor.bundle.js") на part машин падали
+    // ("Cannot find module") — CEP резолвит require() непредсказуемо от
+    // машины к машине. У JSZip такой проблемы нет (не require, а обычный
+    // глобальный скрипт) — для основного, ежедневного случая (.docx)
+    // возвращаемся на него, чтобы ничего не зависело от require().
+    var zip = await JSZip.loadAsync(buffer);
+    var xml = await zip.file("word/document.xml").async("string");
+    var paraMatches = xml.match(/<w:p[ >][\s\S]*?<\/w:p>/g) || [];
+    var items = [];
+    for (var i = 0; i < paraMatches.length; i++) {
+      var textPieces = paraMatches[i].match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || [];
+      var line = textPieces.map(function (t) { return t.replace(/<[^>]+>/g, ""); }).join("").trim();
+      if (line) items.push(line);
+    }
+    return items.slice(0, limit);
+  } else if (isOle) {
+    // Старый .doc (Word 97-2003) — best-effort через word-extractor.
+    // Абсолютный путь через CSInterface (не require()-специфер и не
+    // относительный путь — оба ненадёжны в CEP) — но если и это не
+    // сработает на какой-то машине, ошибка не должна мешать обычным
+    // .docx (та ветка выше их вообще не касается).
+    var extRoot = csInterface.getSystemPath(SystemPath.EXTENSION);
+    var WordExtractor = require(extRoot + "/client/js/word-extractor.bundle.js");
     var doc = await new WordExtractor().extract(buffer);
     text = doc.getBody();
   } else if (isRtf) {
