@@ -281,61 +281,83 @@ async function fetchAllWeatherForDay(dayOffset) {
 }
 
 // ------------------------------------------------------------
-// Курс валют (nbrb.by) — 2026-09: два исправления.
+// Курс валют — 2026-09-25: источник переключён СТРОГО на страницу
+// https://www.nbrb.by/statistics/rates/ratesDaily (по прямому указанию —
+// раньше брали JSON api.nbrb.by/exrates/rates, теперь скрейпим ровно то,
+// что видно на этой странице глазами).
 //
-// 1) Дата — берётся выбранный день выпуска (selectedDayOffset), как у
-//    погоды/даты/именин, через ?ondate=YYYY-MM-DD (раньше всегда шёл
-//    ?periodicity=0 без даты — т.е. "сегодня", независимо от выбора
-//    в "День выпуска"). НБ РБ не публикует курс на каждую дату (будущее
-//    ещё не объявлено, дата в прошлом может не попасть на публикацию) —
-//    если на выбранный день ответ пуст, откатываемся на предыдущие дни
-//    (до NBRB_RATE_LOOKBACK_DAYS) — это и есть официальный курс,
-//    действующий на выбранный день (курс не публикуют ежедневно, но он
-//    остаётся в силе, пока не объявлен новый).
-//
-// 2) Округление — 2 знака берутся из ТЕКСТА ответа API десятичной
-//    арифметикой (roundDecimalString), а не через Number.toFixed():
-//    JS-число — двоичная дробь, и на части значений toFixed(2) даёт не
-//    тот результат, что показывает сайт (классический пример — 1.005
-//    в JS хранится как 1.00499999..., .toFixed(2) вернёт "1.00" вместо
-//    верного "1.01"). Работая со строкой цифр из ответа НБ РБ напрямую,
-//    получаем ровно то число, что "на сайте", без бинарной погрешности.
+// 1) День — POST-форма страницы принимает поле "Date=YYYY-MM-DD" (виден
+//    в value инпута #Date на самой странице) и отдаёт курсы, действовавшие
+//    на эту дату. НБ РБ не публикует курс на каждую дату (будущее — пока
+//    не объявлено, у формы есть maxDate ~на несколько дней вперёд; более
+//    ранняя дата может просто не попасть на публикацию) — если ответ не
+//    содержит таблицы курсов вообще, откатываемся на предыдущие дни (до
+//    NBRB_RATE_LOOKBACK_DAYS) — так получаем официальный курс, реально
+//    действующий на выбранный день.
+// 2) Точность — 4 знака после запятой (столько же добавил в шаблон .aep),
+//    разделитель — запятая, как на самой странице (там "3,0316", не
+//    "3.0316"). Округление — десятично-строковой арифметикой
+//    (roundDecimalString), а не Number.toFixed(): JS-число — двоичная
+//    дробь, и toFixed на части значений (напр. 1.005) даёт не тот
+//    результат, что "на сайте" (см. классику бинарного округления).
+// 3) Масштаб (у RUB на странице явно "100 RUB") уже заложен в саму
+//    страницу — берём число как есть, привязываясь к 3-буквенному коду
+//    валюты, а не к захардкоженной сумме "1"/"100" (сумма перед кодом
+//    вычитывается тем же regexp'ом, но не используется для арифметики —
+//    только код важен, чтобы найти нужную строку таблицы).
 // ------------------------------------------------------------
-var NBRB_RATE_LOOKBACK_DAYS = 10;
+var NBRB_RATE_LOOKBACK_DAYS = 20; // с запасом покрывает BROADCAST_DAYS_AHEAD (7) + окно публикации вперёд
 
 function isoDateStr(d) {
   var m = d.getMonth() + 1, day = d.getDate();
   return d.getFullYear() + "-" + (m < 10 ? "0" + m : m) + "-" + (day < 10 ? "0" + day : day);
 }
 
-function fetchNbrbRatesRawFor(dateISO) {
+// Сырой HTML страницы ratesDaily за конкретный день (POST того же
+// запроса, что уходит с формы на странице при выборе даты).
+function fetchNbrbDailyPageFor(dateISO) {
   return new Promise(function (resolve, reject) {
     var https = require("https");
-    var url = "https://api.nbrb.by/exrates/rates?periodicity=0&ondate=" + dateISO;
-    https.get(url, {
-      headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+    var body = "Date=" + encodeURIComponent(dateISO);
+    var req = https.request({
+      hostname: "www.nbrb.by",
+      path: "/statistics/rates/ratesdaily",
+      method: "POST",
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Length": Buffer.byteLength(body)
+      },
       rejectUnauthorized: false
     }, function (res) {
       var data = "";
       res.on("data", function (chunk) { data += chunk; });
       res.on("end", function () { resolve(data); });
-    }).on("error", function (err) { reject(err); });
+    });
+    req.on("error", function (err) { reject(err); });
+    req.write(body);
+    req.end();
   });
 }
 
-// Достаёт "Cur_OfficialRate" ровно для одной валюты ИЗ ТЕКСТА ответа
-// (не из JSON.parse) — объекты в ответе nbrb.by плоские (без вложенных
-// {}), поэтому такой разбор однозначен.
-function extractOfficialRateText(rawText, code) {
-  var itemRe = new RegExp('\\{[^{}]*"Cur_Abbreviation":"' + code + '"[^{}]*\\}');
-  var item = itemRe.exec(rawText);
-  if (!item) return null;
-  var rateRe = /"Cur_OfficialRate":\s*(-?[0-9]+(?:\.[0-9]+)?)/;
-  var rate = rateRe.exec(item[0]);
-  return rate ? rate[1] : null;
+// Строка таблицы на ratesDaily:
+//   <td class="curAmount">1 USD</td>
+//   <td class="curCours"><div style="text-align:right">3,0316</div></td>
+// (у RUB — "100 RUB": масштаб уже часть страницы, не трогаем). Возвращает
+// значение курса КАК ЕСТЬ — строкой с запятой, — или null, если валюты
+// нет в ответе (напр. страница вообще без таблицы на эту дату).
+function extractRateFromDailyPage(html, code) {
+  var re = new RegExp(
+    'curAmount">\\s*\\d+\\s*' + code + '\\s*</td>\\s*' +
+    '<td class="curCours">\\s*<div[^>]*>\\s*([0-9]+(?:[.,][0-9]+)?)\\s*</div>'
+  );
+  var m = re.exec(html);
+  return m ? m[1] : null;
 }
 
 // Округление ДЕСЯТИЧНОЙ СТРОКИ (round half up), без перевода в float.
+// Разделитель на входе/выходе — точка (используем как внутренний формат,
+// на сайте/на выходе для пользователя — запятая, см. fetchCurrencies).
 function roundDecimalString(numStr, decimals) {
   var neg = numStr.charAt(0) === "-";
   if (neg) numStr = numStr.slice(1);
@@ -360,29 +382,43 @@ function roundDecimalString(numStr, decimals) {
   return (neg ? "-" : "") + result;
 }
 
-function fetchCurrenciesRawForDate(dateObj, triesLeft) {
-  return fetchNbrbRatesRawFor(isoDateStr(dateObj)).then(function (rawText) {
-    var hasAny = CURRENCIES.some(function (c) { return extractOfficialRateText(rawText, c.code) !== null; });
-    if (hasAny || triesLeft <= 0) return rawText;
+function fetchCurrenciesHtmlForDate(dateObj, triesLeft) {
+  return fetchNbrbDailyPageFor(isoDateStr(dateObj)).then(function (html) {
+    var hasAny = CURRENCIES.some(function (c) { return extractRateFromDailyPage(html, c.code) !== null; });
+    if (hasAny || triesLeft <= 0) return html;
     var prevDay = new Date(dateObj.getTime());
     prevDay.setDate(prevDay.getDate() - 1);
-    return fetchCurrenciesRawForDate(prevDay, triesLeft - 1);
+    return fetchCurrenciesHtmlForDate(prevDay, triesLeft - 1);
   });
 }
 
+var CURRENCY_DECIMALS = 4;
+
 function fetchCurrencies() {
-  return fetchCurrenciesRawForDate(dateShifted(selectedDayOffset), NBRB_RATE_LOOKBACK_DAYS).then(function (rawText) {
+  return fetchCurrenciesHtmlForDate(dateShifted(selectedDayOffset), NBRB_RATE_LOOKBACK_DAYS).then(function (html) {
     return CURRENCIES.map(function (c) {
-      var raw = extractOfficialRateText(rawText, c.code);
-      return { code: c.code, label: c.label, rate: raw ? roundDecimalString(raw, 2) : "" };
+      var raw = extractRateFromDailyPage(html, c.code); // строка с запятой либо точкой
+      if (!raw) return { code: c.code, label: c.label, rate: "" };
+      var rounded = roundDecimalString(raw.replace(",", "."), CURRENCY_DECIMALS);
+      return { code: c.code, label: c.label, rate: rounded.replace(".", ",") };
     });
   });
 }
 
 // ------------------------------------------------------------
-// Парсинг .docx: один пункт = один непустой абзац, до 10 штук.
-// Общий парсер и для новостей, и для именин — файлы устроены
-// одинаково (др_черновик.docx / новости_черновик.docx).
+// Парсинг файла новостей/гороскопа: один пункт = один непустой абзац,
+// до maxItems штук. 2026-09-25: раньше умели только настоящий .docx
+// (ZIP + word/document.xml) — если приносили старый .doc (Word 97-2003,
+// двоичный OLE), файл, сохранённый в Блокноте (обычный текст), или из
+// другого редактора с иной структурой — ZIP-распаковка падала, текст не
+// извлекался ("файл не виден"). Теперь — по сигнатуре первых байтов:
+//   - ZIP (PK\x03\x04, т.е. настоящий .docx) или OLE (D0 CF 11 E0,
+//     старый .doc) → word-extractor (vendored в client/js/node_modules —
+//     чистый JS, без Word/COM, разбирает ОБА формата из Buffer напрямую);
+//   - {\rtf → свой лёгкий RTF→текст (ниже);
+//   - иначе — обычный текст: UTF-8, а если получилось "грязно" (много
+//     символов замены � — не та кодировка) — Windows-1251 (старые
+//     файлы/Блокнот на русской Windows).
 // ------------------------------------------------------------
 function readFileAsArrayBuffer(file) {
   return new Promise(function (resolve, reject) {
@@ -393,25 +429,163 @@ function readFileAsArrayBuffer(file) {
   });
 }
 
+// Windows-1251, байты 0x80-0xFF -> кодовая точка Unicode (таблица снята
+// программно через TextDecoder('windows-1251'), не набрана вручную —
+// вручную такую таблицу легко ошибочно набрать и получить "почти
+// правильную" кириллицу).
+var CP1251_HIGH = [1026, 1027, 8218, 1107, 8222, 8230, 8224, 8225, 8364, 8240, 1033, 8249, 1034, 1036, 1035, 1039,
+  1106, 8216, 8217, 8220, 8221, 8226, 8211, 8212, 152, 8482, 1113, 8250, 1114, 1116, 1115, 1119,
+  160, 1038, 1118, 1032, 164, 1168, 166, 167, 1025, 169, 1028, 171, 172, 173, 174, 1031,
+  176, 177, 1030, 1110, 1169, 181, 182, 183, 1105, 8470, 1108, 187, 1112, 1029, 1109, 1111,
+  1040, 1041, 1042, 1043, 1044, 1045, 1046, 1047, 1048, 1049, 1050, 1051, 1052, 1053, 1054, 1055,
+  1056, 1057, 1058, 1059, 1060, 1061, 1062, 1063, 1064, 1065, 1066, 1067, 1068, 1069, 1070, 1071,
+  1072, 1073, 1074, 1075, 1076, 1077, 1078, 1079, 1080, 1081, 1082, 1083, 1084, 1085, 1086, 1087,
+  1088, 1089, 1090, 1091, 1092, 1093, 1094, 1095, 1096, 1097, 1098, 1099, 1100, 1101, 1102, 1103];
+
+function decodeCp1251Byte(b) { return String.fromCodePoint(b < 0x80 ? b : CP1251_HIGH[b - 0x80]); }
+
+function decodeCp1251Buffer(buf) {
+  var out = [];
+  for (var i = 0; i < buf.length; i++) out.push(decodeCp1251Byte(buf[i]));
+  return out.join("");
+}
+
+// Декодирует обычный текстовый буфер: UTF-8, а если результат "грязный"
+// (заметная доля символов замены � — верный признак не той
+// кодировки) — Windows-1251.
+function decodeTextBuffer(buf) {
+  var utf8 = buf.toString("utf8");
+  var bad = (utf8.match(/�/g) || []).length;
+  if (bad > 0 && bad > utf8.length * 0.02) return decodeCp1251Buffer(buf);
+  return utf8;
+}
+
+// Лёгкий RTF -> текст: пропускает служебные группы (таблицы шрифтов/
+// цветов, инфо, генератор и т.п.), раскрывает \'hh (Windows-1251) и
+// \uN (Unicode), \par/\line -> перевод строки, \tab -> таб, прочие
+// управляющие слова — без видимого текста. Не претендует на 100%
+// соответствие спецификации RTF — этого достаточно для абзацев текста
+// без картинок/таблиц (новости/гороскоп).
+var RTF_SKIP_DESTINATIONS = {
+  fonttbl: 1, colortbl: 1, stylesheet: 1, info: 1, generator: 1,
+  "*": 1, pict: 1, object: 1, footer: 1, header: 1, footnote: 1,
+  themedata: 1, colorschememapping: 1, latentstyles: 1, rsid: 1,
+  xmlnstbl: 1, listtable: 1, listoverridetable: 1
+};
+
+function rtfToText(rtf) {
+  var i = 0, n = rtf.length;
+  var out = [];
+  var groupSkipDepth = -1; // -1 = не в пропускаемой группе, иначе глубина её начала
+  var depth = 0;
+
+  function peekControlWord() {
+    var neg = false;
+    if (rtf[i] === "-") { neg = true; i++; }
+    var wordStart = i;
+    while (i < n && /[a-zA-Z]/.test(rtf[i])) i++;
+    var word = rtf.slice(wordStart, i);
+    var numStart = i;
+    while (i < n && /[0-9]/.test(rtf[i])) i++;
+    var num = rtf.slice(numStart, i);
+    if (i < n && rtf[i] === " ") i++; // разделитель после слова/числа поглощается
+    return { word: word, num: num ? (neg ? -1 : 1) * parseInt(num, 10) : null };
+  }
+
+  while (i < n) {
+    var ch = rtf[i];
+    if (ch === "{") {
+      depth++;
+      i++;
+      if (rtf[i] === "\\") {
+        var save2 = i;
+        i++;
+        if (rtf[i] === "*") {
+          // \* — универсальный "необязательный деструктив" по спецификации
+          // RTF: ридер, не знающий, что это, обязан скрыть всю группу.
+          // Word прячет за ним почти весь свой служебный балласт (XML-схемы,
+          // datastore, генератор, latentstyles и т.п.) — не пытаемся
+          // перечислить все конкретные имена, просто доверяем звёздочке.
+          if (groupSkipDepth === -1) groupSkipDepth = depth;
+        } else {
+          var cw = peekControlWord();
+          if (groupSkipDepth === -1 && RTF_SKIP_DESTINATIONS[cw.word]) groupSkipDepth = depth;
+        }
+        i = save2; // откат — само \слово (или \*) обработает основной цикл
+      }
+      continue;
+    }
+    if (ch === "}") {
+      if (groupSkipDepth === depth) groupSkipDepth = -1;
+      depth--;
+      i++;
+      continue;
+    }
+    if (ch === "\\") {
+      i++;
+      if (rtf[i] === "'") {
+        i++;
+        var hex = rtf.slice(i, i + 2);
+        i += 2;
+        if (groupSkipDepth === -1) out.push(decodeCp1251Byte(parseInt(hex, 16)));
+        continue;
+      }
+      if (rtf[i] === "\\" || rtf[i] === "{" || rtf[i] === "}") {
+        if (groupSkipDepth === -1) out.push(rtf[i]);
+        i++;
+        continue;
+      }
+      if (rtf[i] === "\n" || rtf[i] === "\r") { i++; continue; }
+      var cw2 = peekControlWord();
+      if (cw2.word === "u" && cw2.num !== null) {
+        if (groupSkipDepth === -1) out.push(String.fromCodePoint(cw2.num < 0 ? cw2.num + 65536 : cw2.num));
+        if (rtf[i] === "?") i++; // запасной ANSI-символ после \uN — пропускаем
+        continue;
+      }
+      if (cw2.word === "par" || cw2.word === "line") {
+        if (groupSkipDepth === -1) out.push("\n");
+        continue;
+      }
+      if (cw2.word === "tab") {
+        if (groupSkipDepth === -1) out.push("\t");
+        continue;
+      }
+      continue; // прочие управляющие слова — без видимого текста
+    }
+    if (groupSkipDepth === -1) out.push(ch);
+    i++;
+  }
+  return out.join("");
+}
+
+function linesFromText(text, limit) {
+  return text.split(/\r\n|\r|\n/)
+    .map(function (s) { return s.trim(); })
+    .filter(function (s) { return s.length > 0; })
+    .slice(0, limit);
+}
+
 async function parseDocxParagraphs(file, maxItems) {
   var limit = maxItems || 10; // по умолчанию 10 (новости/именины), гороскоп передаёт 12
-  var buffer = await readFileAsArrayBuffer(file);
-  var zip = await JSZip.loadAsync(buffer);
-  var xml = await zip.file("word/document.xml").async("string");
+  var arrayBuffer = await readFileAsArrayBuffer(file);
+  var buffer = Buffer.from(arrayBuffer);
 
-  var paraMatches = xml.match(/<w:p[ >][\s\S]*?<\/w:p>/g) || [];
-  var items = [];
+  var isZip = buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04;
+  var isOle = buffer.length >= 4 && buffer[0] === 0xD0 && buffer[1] === 0xCF && buffer[2] === 0x11 && buffer[3] === 0xE0;
+  var isRtf = buffer.slice(0, 5).toString("ascii") === "{\\rtf";
 
-  for (var i = 0; i < paraMatches.length && items.length < limit; i++) {
-    var para = paraMatches[i];
-    var textPieces = para.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || [];
-    var text = textPieces
-      .map(function (t) { return t.replace(/<[^>]+>/g, ""); })
-      .join("")
-      .trim();
-    if (text) items.push(text);
+  var text;
+  if (isZip || isOle) {
+    var WordExtractor = require("word-extractor");
+    var doc = await new WordExtractor().extract(buffer);
+    text = doc.getBody();
+  } else if (isRtf) {
+    text = rtfToText(buffer.toString("ascii"));
+  } else {
+    text = decodeTextBuffer(buffer);
   }
-  return items;
+
+  return linesFromText(text, limit);
 }
 
 // ------------------------------------------------------------

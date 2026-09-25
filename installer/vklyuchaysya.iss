@@ -11,7 +11,7 @@
 ; ============================================================
 
 #define AppName "Включайся!"
-#define AppVersion "1.1.3"
+#define AppVersion "1.1.4"
 #define AppPublisher "AutoPogoda"
 
 [Setup]
@@ -59,6 +59,12 @@ Source: "README.txt"; DestDir: "{app}"; Flags: isreadme ignoreversion
 Source: "..\fonts\*.ttf"; DestDir: "{autofonts}"; \
     Flags: onlyifdoesntexist uninsneveruninstall
 
+; --- пресет Adobe Media Encoder "строка" — зашит в инсталлятор, но не
+; раскладывается сюда автоматически: целевых папок несколько (по числу
+; версий AME на машине) и заранее неизвестно, сколько их — раскладка
+; сделана в [Code] (см. InstallAmePreset). ---
+Source: "extras\Stroka_VKL.epr"; DestDir: "{tmp}"; Flags: dontcopy
+
 [Registry]
 ; PlayerDebugMode — CEP читает ТОЛЬКО из HKCU. Ставим на все ходовые версии CSXS.
 Root: HKCU; Subkey: "Software\Adobe\CSXS.9";  ValueType: string; ValueName: "PlayerDebugMode"; ValueData: "1"; Flags: uninsdeletevalue
@@ -79,9 +85,62 @@ Filename: "{app}\README.txt"; Description: "Открыть README (обязат�
 Type: filesandordirs; Name: "{userappdata}\Adobe\CEP\extensions\AutoPogodaPanel"
 
 [Code]
+// Версия AME на диске — папка вида "22.0", "23.0", "26.0" (всегда
+// начинается с цифры). Рядом в Documents\Adobe\Adobe Media Encoder\ может
+// лежать и другое (напр. "Adobe Adobe Media Encoder Audio Previews") —
+// это НЕ версия, туда пресет класть не нужно.
+function LooksLikeAmeVersion(const AName: string): Boolean;
+begin
+  Result := (Length(AName) > 0) and (AName[1] >= '0') and (AName[1] <= '9');
+end;
+
+// Раскладывает Stroka_VKL.epr во ВСЕ версии Adobe Media Encoder, найденные
+// на этой машине (Documents\Adobe\Adobe Media Encoder\<версия>\Presets),
+// и дополнительно всегда в "26.0" (текущая версия, на которой сделан
+// пресет) — даже если такой папки ещё нет (создастся сама при первом
+// запуске AME, но пресет туда уже положен заранее).
+procedure InstallAmePreset;
+var
+  baseDir, destDir, srcTmp: string;
+  found: TFindRec;
+begin
+  ExtractTemporaryFile('Stroka_VKL.epr');
+  srcTmp := ExpandConstant('{tmp}\Stroka_VKL.epr');
+  baseDir := ExpandConstant('{userdocs}\Adobe\Adobe Media Encoder');
+
+  if DirExists(baseDir) then
+  begin
+    if FindFirst(baseDir + '\*', found) then
+    begin
+      try
+        repeat
+          if (found.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0)
+             and (found.Name <> '.') and (found.Name <> '..')
+             and LooksLikeAmeVersion(found.Name) then
+          begin
+            destDir := baseDir + '\' + found.Name + '\Presets';
+            ForceDirectories(destDir);
+            CopyFile(srcTmp, destDir + '\Stroka_VKL.epr', False);
+          end;
+        until not FindNext(found);
+      finally
+        FindClose(found);
+      end;
+    end;
+  end;
+
+  // Всегда также в 26.0 — по решению пользователя, даже если её не было
+  // среди найденных выше (например, на совсем свежей машине).
+  destDir := baseDir + '\26.0\Presets';
+  ForceDirectories(destDir);
+  CopyFile(srcTmp, destDir + '\Stroka_VKL.epr', False);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
+  begin
+    InstallAmePreset;
     MsgBox(
       'Панель установлена.' + #13#10#13#10 +
       'Последний шаг — один раз в After Effects:' + #13#10 +
@@ -90,4 +149,5 @@ begin
       'затем перезапустить After Effects.' + #13#10#13#10 +
       'Подробнее — в README.',
       mbInformation, MB_OK);
+  end;
 end;
