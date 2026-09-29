@@ -68,7 +68,12 @@
 
   <section class="block">
     <h2>Гороскоп</h2>
-    <p class="hint">Enter внутри текста гороскопа — перенести на 2-ю строку с этого места.</p>
+    <p class="hint">12 знаков зодиака (классический порядок, заглавными) + случайная фраза из «гороскоп.txt» рядом с проектом — без повторов на день.</p>
+    <div class="row">
+      <button id="btnHoroscopeGenerate">Сгенерировать гороскоп</button>
+      <span class="status-icon" id="horoscopeGenStatus"></span>
+    </div>
+    <p class="hint">Вручную — файл .docx с текстом на каждый знак (Enter внутри текста — перенести на 2-ю строку с этого места).</p>
     <input type="file" id="horoscopeFile" accept=".docx" />
     <div class="row">
       <button id="btnHoroscope" disabled>Загрузить гороскоп</button>

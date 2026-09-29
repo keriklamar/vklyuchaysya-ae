@@ -11,7 +11,7 @@
 ; ============================================================
 
 #define AppName "Включайся!"
-#define AppVersion "1.1.7"
+#define AppVersion "1.1.8"
 #define AppPublisher "AutoPogoda"
 
 [Setup]
@@ -58,6 +58,9 @@ Source: "..\project\подложка.psd";           DestDir: "{app}\РЕЗЕР�
 
 ; --- README ---
 Source: "README.txt"; DestDir: "{app}"; Flags: isreadme ignoreversion
+; гороскоп.txt — рядом с {app} (НЕ в Graph!) — так его находит
+; getProjectFolder() в host.jsx (папка на уровень выше .aep).
+Source: "гороскоп.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 ; --- шрифты (per-user, Win10 1809+) ---
 Source: "..\fonts\*.ttf"; DestDir: "{autofonts}"; \

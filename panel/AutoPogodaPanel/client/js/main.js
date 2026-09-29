@@ -1023,6 +1023,58 @@ var HOROSCOPE_FIELDS = [
   { key: "mode", button: true, cycle: ["auto", "1", "2"], labels: { auto: "авто", "1": "1 стр.", "2": "2 стр." } }
 ];
 
+// ------------------------------------------------------------
+// Автогенерация гороскопа (2026-09-29, по прямому указанию продюсера):
+// 12 знаков зодиака в классическом порядке, ЗАГЛАВНЫМИ, не меняются —
+// к каждому добавляется (двойной пробел +) случайная фраза из файла
+// "гороскоп.txt", который лежит рядом с проектом (папкой выше "Graph" —
+// путь узнаём у host.jsx через getProjectFolder(), не хардкодим диск).
+// Фразы на все 12 знаков в одной генерации — РАЗНЫЕ (pickRandom без
+// повторов, как и для имён именинников).
+// ------------------------------------------------------------
+var ZODIAC_SIGNS = [
+  "ОВЕН", "ТЕЛЕЦ", "БЛИЗНЕЦЫ", "РАК", "ЛЕВ", "ДЕВА",
+  "ВЕСЫ", "СКОРПИОН", "СТРЕЛЕЦ", "КОЗЕРОГ", "ВОДОЛЕЙ", "РЫБЫ"
+];
+
+async function generateHoroscopeFromFile() {
+  var folder = await callHost("getProjectFolder", {});
+  if (folder.indexOf("ERROR") === 0) throw new Error(folder);
+  var fs = require("fs");
+  var filePath = folder + "/гороскоп.txt";
+  var buffer;
+  try {
+    buffer = fs.readFileSync(filePath);
+  } catch (e) {
+    throw new Error("не найден файл " + filePath);
+  }
+  // decodeTextBuffer — тот же откат UTF-8 -> Windows-1251, что и у
+  // обычных текстовых файлов новостей/гороскопа (см. parseDocxParagraphs).
+  var text = decodeTextBuffer(buffer);
+  var lines = text.split(/\r\n|\r|\n/)
+    .map(function (s) { return s.trim(); })
+    .filter(function (s) { return s.length > 0; });
+  if (lines.length < ZODIAC_SIGNS.length) {
+    throw new Error("в гороскоп.txt " + lines.length + " строк, а нужно минимум " + ZODIAC_SIGNS.length);
+  }
+  var picked = pickRandom(lines, ZODIAC_SIGNS.length);
+  return ZODIAC_SIGNS.map(function (sign, i) {
+    return { text: sign + "  " + picked[i], num: (i + 1) + "." };
+  });
+}
+
+document.getElementById("btnHoroscopeGenerate").addEventListener("click", async function () {
+  setStatus("horoscopeGenStatus", "Читаю гороскоп.txt...");
+  try {
+    var rows = await generateHoroscopeFromFile();
+    renderEditableRows(document.getElementById("horoscopePreview"), rows, HOROSCOPE_FIELDS);
+    document.getElementById("btnHoroscope").disabled = false;
+    setStatus("horoscopeGenStatus", "Готово: 12 знаков, фразы без повторов.");
+  } catch (e) {
+    setStatus("horoscopeGenStatus", "Ошибка: " + e.message, true);
+  }
+});
+
 document.getElementById("horoscopeFile").addEventListener("change", async function (e) {
   var file = e.target.files[0];
   if (!file) return;
