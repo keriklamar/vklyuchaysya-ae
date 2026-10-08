@@ -54,6 +54,7 @@ Source: "..\panel\AutoPogodaPanel\*"; DestDir: "{userappdata}\Adobe\CEP\extensio
 Source: "..\project\*"; DestDir: "{app}\Graph"; Flags: recursesubdirs createallsubdirs ignoreversion
 ; резервная копия проекта рядом
 Source: "..\project\подложка утро_0.3.aep"; DestDir: "{app}\РЕЗЕРВНАЯ КОПИЯ\Graph"; Flags: ignoreversion
+Source: "..\project\подложка утро_0.3 (AE 2024+).aep"; DestDir: "{app}\РЕЗЕРВНАЯ КОПИЯ\Graph"; Flags: ignoreversion
 Source: "..\project\подложка.psd";           DestDir: "{app}\РЕЗЕРВНАЯ КОПИЯ\Graph"; Flags: ignoreversion
 
 ; --- README ---

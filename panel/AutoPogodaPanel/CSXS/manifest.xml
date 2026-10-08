@@ -7,8 +7,8 @@
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
-      <!-- AEFT = After Effects. Версии 18.0+ (2021+); поправь при необходимости -->
-      <Host Name="AEFT" Version="[18.0,99.9]" />
+      <!-- AEFT = After Effects. Версии 24.0+ (2024+): проект сохранён в 2026 и 2024 (пересохранить ниже без старой AE нельзя) -->
+      <Host Name="AEFT" Version="[24.0,99.9]" />
     </HostList>
     <LocaleList>
       <Locale Code="All" />

@@ -14,11 +14,12 @@
 ```
 panel/
   AutoPogodaPanel/        CEP-расширение AE (готово к установке как есть)
-    CSXS/manifest.xml     bundle id by.autopogoda.panel, CSXS 9.0+, AEFT 18.0+
+    CSXS/manifest.xml     bundle id by.autopogoda.panel, CSXS 9.0+, AEFT 24.0+ (After Effects 2024 и новее)
     client/               UI: index.html + js/main.js (+ CSInterface.js, jszip.min.js)
     host/host.jsx         вся логика ExtendScript (~230 КБ, ES3)
 project/
-  подложка утро_0.3.aep   основной проект
+  подложка утро_0.3.aep   основной проект (AE 2026)
+  подложка утро_0.3 (AE 2024+).aep   тот же проект для AE 2024/2025
   подложка.psd            исходник подложки
   Анимашки/               исходники иконок погоды (Weather icons *.aep)
   icons/                  PNG/SVG иконок погоды

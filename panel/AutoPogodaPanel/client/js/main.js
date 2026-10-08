@@ -1069,6 +1069,7 @@ document.getElementById("btnHoroscopeGenerate").addEventListener("click", async 
     var rows = await generateHoroscopeFromFile();
     renderEditableRows(document.getElementById("horoscopePreview"), rows, HOROSCOPE_FIELDS);
     document.getElementById("btnHoroscope").disabled = false;
+    document.getElementById("btnHoroscopeSave").disabled = false;
     setStatus("horoscopeGenStatus", "Готово: 12 знаков, фразы без повторов.");
   } catch (e) {
     setStatus("horoscopeGenStatus", "Ошибка: " + e.message, true);
@@ -1082,6 +1083,7 @@ document.getElementById("horoscopeFile").addEventListener("change", async functi
     var items = await parseDocxParagraphs(file, 12);
     renderEditableRows(document.getElementById("horoscopePreview"), items.map(function (t, i) { return { text: t, num: (i + 1) + "." }; }), HOROSCOPE_FIELDS);
     document.getElementById("btnHoroscope").disabled = false;
+    document.getElementById("btnHoroscopeSave").disabled = false;
     setStatus("horoscopeStatus", "Найдено гороскопов: " + items.length);
   } catch (err) {
     setStatus("horoscopeStatus", "Ошибка чтения docx: " + err.message, true);
@@ -1097,6 +1099,63 @@ document.getElementById("btnHoroscope").addEventListener("click", async function
     showResult("horoscopeStatus", result);
   } catch (e) {
     setStatus("horoscopeStatus", "Ошибка: " + e.message, true);
+  }
+});
+
+// "Скачать гороскоп": сохраняет ТЕКУЩИЙ текст из полей (с правками, как
+// сгенерировано/отредактировано) в .docx (абзац на знак) или .txt — формат
+// по расширению в окне сохранения. Файл отдаётся ведущим.
+function escapeXml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+async function buildHoroscopeDocx(texts) {
+  var body = texts.map(function (t) {
+    var runs = t.split(/\r?\n/).map(function (line) {
+      return '<w:t xml:space="preserve">' + escapeXml(line) + "</w:t>";
+    }).join("<w:br/>");
+    return "<w:p><w:r>" + runs + "</w:r></w:p>";
+  }).join("");
+  var zip = new JSZip();
+  zip.file("[Content_Types].xml",
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+    "</Types>");
+  zip.file("_rels/.rels",
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+    "</Relationships>");
+  zip.file("word/document.xml",
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' +
+    body + "</w:body></w:document>");
+  return zip.generateAsync({ type: "nodebuffer" });
+}
+
+document.getElementById("btnHoroscopeSave").addEventListener("click", async function () {
+  var rows = readEditableRows(document.getElementById("horoscopePreview"), HOROSCOPE_FIELDS);
+  var texts = rows.map(function (r) { return r.text; }).filter(function (t) { return t && t.trim(); });
+  if (!texts.length) { setStatus("horoscopeStatus", "Нечего сохранять — сначала сгенерируй гороскоп.", true); return; }
+  try {
+    var sel = window.cep.fs.showSaveDialogEx(
+      "Сохранить гороскоп", "", ["docx", "txt"], "Гороскоп.docx", "Документ Word или текст");
+    if (!sel || !sel.data) return; // отмена
+    var path = String(sel.data);
+    if (!/\.(docx|txt)$/i.test(path)) path += ".docx";
+    var fs = require("fs");
+    if (/\.txt$/i.test(path)) {
+      // BOM, чтобы Блокнот Windows открыл кириллицу в UTF-8
+      fs.writeFileSync(path, "﻿" + texts.join("\r\n\r\n"), "utf8");
+    } else {
+      fs.writeFileSync(path, await buildHoroscopeDocx(texts));
+    }
+    setStatus("horoscopeStatus", "Сохранено: " + path);
+  } catch (e) {
+    setStatus("horoscopeStatus", "Ошибка сохранения: " + e.message, true);
   }
 });
 
