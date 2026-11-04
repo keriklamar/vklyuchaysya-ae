@@ -59,6 +59,10 @@ Source: "..\project\подложка утро_0.3.aep"; DestDir: "{app}\РЕЗЕ
 Source: "..\project\подложка утро_0.3 (AE 2024+).aep"; DestDir: "{app}\РЕЗЕРВНАЯ КОПИЯ\Graph"; Flags: ignoreversion
 Source: "..\project\подложка.psd";           DestDir: "{app}\РЕЗЕРВНАЯ КОПИЯ\Graph"; Flags: ignoreversion
 
+; --- диагностика (двойной клик по diagnose.bat -> отчёт на рабочем столе) ---
+Source: "..\tools\diagnose.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\tools\diagnose.bat"; DestDir: "{app}"; Flags: ignoreversion
+
 ; --- README ---
 Source: "README.txt"; DestDir: "{app}"; Flags: isreadme ignoreversion
 ; гороскоп.txt — рядом с {app} (НЕ в Graph!) — так его находит
