@@ -11,7 +11,7 @@
 ; ============================================================
 
 #define AppName "Включайся!"
-#define AppVersion "1.1.8"
+#define AppVersion "1.1.9"
 #define AppPublisher "AutoPogoda"
 
 [Setup]
@@ -20,9 +20,11 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
 WizardStyle=modern
-; всё per-user — админ и UAC не нужны
+; всё per-user — админ и UAC не нужны. Режим "для всех / от администратора"
+; намеренно НЕ разрешён (раньше стояло PrivilegesRequiredOverridesAllowed=dialog):
+; при запуске от другого админа панель и ключ реестра попадали в ЕГО профиль,
+; а не в профиль того, кто работает в After Effects.
 PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
 DefaultDirName={userdocs}\Включайся
 ; явно показываем страницу выбора папки установки (проект + резервная
 ; копия ставятся туда; панель и шрифты — всегда в фиксированные системные
@@ -93,6 +95,37 @@ Filename: "{app}\README.txt"; Description: "Открыть README (обязат�
 Type: filesandordirs; Name: "{userappdata}\Adobe\CEP\extensions\AutoPogodaPanel"
 
 [Code]
+// Запуск "от имени администратора" (особенно под другой учётной записью)
+// кладёт панель и ключ реестра в профиль админа, а не пользователя, который
+// работает в After Effects. Поэтому в повышенном режиме не ставим.
+function InitializeSetup: Boolean;
+begin
+  Result := True;
+  if IsAdmin then
+  begin
+    MsgBox(
+      'Установщик запущен от имени администратора.' + #13#10#13#10 +
+      'В этом режиме панель устанавливается в профиль администратора, ' + #13#10 +
+      'а не в ваш, и в After Effects её не будет.' + #13#10#13#10 +
+      'Закройте это окно и запустите установщик обычным двойным кликом, ' + #13#10 +
+      'без «Запуск от имени администратора».',
+      mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
+// Проверка результата: панель реально лежит в профиле текущего пользователя
+// и ключ PlayerDebugMode записан. Иначе пользователь узнаёт об ошибке сразу.
+function PanelInstalledOk: Boolean;
+var
+  v: string;
+begin
+  Result :=
+    FileExists(ExpandConstant('{userappdata}\Adobe\CEP\extensions\AutoPogodaPanel\CSXS\manifest.xml'))
+    and RegQueryStringValue(HKCU, 'Software\Adobe\CSXS.12', 'PlayerDebugMode', v)
+    and (v = '1');
+end;
+
 // Версия AME на диске — папка вида "22.0", "23.0", "26.0" (всегда
 // начинается с цифры). Рядом в Documents\Adobe\Adobe Media Encoder\ может
 // лежать и другое (напр. "Adobe Adobe Media Encoder Audio Previews") —
@@ -149,8 +182,18 @@ begin
   if CurStep = ssPostInstall then
   begin
     InstallAmePreset;
+    if not PanelInstalledOk then
+      MsgBox(
+        'ВНИМАНИЕ: панель не найдена после установки.' + #13#10#13#10 +
+        'Ожидается файл:' + #13#10 +
+        ExpandConstant('{userappdata}\Adobe\CEP\extensions\AutoPogodaPanel\CSXS\manifest.xml') + #13#10#13#10 +
+        'Возможно, файлы удалил антивирус. Добавьте папку ' + #13#10 +
+        ExpandConstant('{userappdata}\Adobe\CEP') + #13#10 +
+        'в исключения и запустите установщик ещё раз.',
+        mbError, MB_OK);
     MsgBox(
-      'Панель установлена.' + #13#10#13#10 +
+      'Панель установлена в:' + #13#10 +
+      ExpandConstant('{userappdata}\Adobe\CEP\extensions\AutoPogodaPanel') + #13#10#13#10 +
       'Последний шаг — один раз в After Effects:' + #13#10 +
       'Edit → Preferences → Scripting & Expressions →' + #13#10 +
       '[x] Allow Scripts to Write Files and Access Network,' + #13#10 +
